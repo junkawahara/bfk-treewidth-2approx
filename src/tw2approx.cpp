@@ -1128,6 +1128,35 @@ static void usage() {
             "  -v             verbose\n");
 }
 
+// whole-string numeric option values (no trailing characters, in range, finite)
+static bool parse_ll(const string& s, long long lo, long long hi, long long& out) {
+    if (s.empty() || isspace((unsigned char)s[0])) return false;
+    errno = 0;
+    char* end;
+    long long v = strtoll(s.c_str(), &end, 10);
+    if (errno || *end || v < lo || v > hi) return false;
+    out = v;
+    return true;
+}
+static bool parse_u64(const string& s, uint64_t& out) {
+    if (s.empty() || !isdigit((unsigned char)s[0])) return false;  // strtoull accepts "-1"
+    errno = 0;
+    char* end;
+    unsigned long long v = strtoull(s.c_str(), &end, 10);
+    if (errno || *end) return false;
+    out = v;
+    return true;
+}
+static bool parse_double(const string& s, double lo, double hi, double& out) {
+    if (s.empty() || isspace((unsigned char)s[0])) return false;
+    errno = 0;
+    char* end;
+    double v = strtod(s.c_str(), &end);
+    if (errno || *end || !isfinite(v) || v < lo || v > hi) return false;
+    out = v;
+    return true;
+}
+
 int main(int argc, char** argv) {
     int fixed_k = -1;
     string init = "mindeg", infile, outfile;
@@ -1143,19 +1172,30 @@ int main(int argc, char** argv) {
             }
             return argv[++i];
         };
-        if (a == "-k")
-            fixed_k = stoi(need());
-        else if (a == "--init")
+        auto invalid = [&](const string& v, const char* domain) {
+            fprintf(stderr, "error: invalid value '%s' for %s (expected %s)\n", v.c_str(), a.c_str(), domain);
+            usage();
+            exit(2);
+        };
+        if (a == "-k") {
+            string s = need();
+            long long v;
+            if (!parse_ll(s, 0, INT_MAX, v)) invalid(s, "an integer 0 <= K <= 2^31-1");
+            fixed_k = (int)v;
+        } else if (a == "--init")
             init = need();
-        else if (a == "--mix")
-            mix = stod(need());
-        else if (a == "--seed")
-            seed = stoull(need());
-        else if (a == "--no-lb")
+        else if (a == "--mix") {
+            string s = need();
+            if (!parse_double(s, 0, 1, mix)) invalid(s, "a probability 0 <= Q <= 1");
+        } else if (a == "--seed") {
+            string s = need();
+            if (!parse_u64(s, seed)) invalid(s, "an integer 0 <= S <= 2^64-1");
+        } else if (a == "--no-lb")
             use_lb = false;
-        else if (a == "--mem-gb")
-            mem_gb = stod(need());
-        else if (a == "--check")
+        else if (a == "--mem-gb") {
+            string s = need();
+            if (!parse_double(s, 0, 1e6, mem_gb)) invalid(s, "a number 0 <= G <= 1e6");
+        } else if (a == "--check")
             check = true;
         else if (a == "-o")
             outfile = need();
@@ -1224,14 +1264,16 @@ int main(int argc, char** argv) {
         long long guard = 50LL * (long long)V.size() + 1000;
         try {
             if (fixed_k >= 0) {
-                if (w0 > 4 * fixed_k + 3) {
+                // 64-bit: fixed_k may be as large as INT_MAX.  T.run is only called with
+                // 2k+1 < w0 <= n, so the int arithmetic inside it cannot overflow.
+                if (w0 > 4LL * fixed_k + 3) {
                     fprintf(stderr,
-                            "error: component %d: initial width %d > 4k+3 = %d (Theorem 1 needs a "
+                            "error: component %d: initial width %d > 4k+3 = %lld (Theorem 1 needs a "
                             "4-approximation)\n",
-                            ci, w0, 4 * fixed_k + 3);
+                            ci, w0, 4LL * fixed_k + 3);
                     return 2;
                 }
-                if (2 * fixed_k + 1 >= w0 || T.run(fixed_k, guard))
+                if (2LL * fixed_k + 1 >= w0 || T.run(fixed_k, guard))
                     kres = fixed_k;
                 else {
                     failed_fixed = true;
