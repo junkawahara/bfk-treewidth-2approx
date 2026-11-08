@@ -1375,6 +1375,13 @@ int main(int argc, char** argv) {
     // PACE .td (Appendix B): the first bag id of a tree edge must be smaller than the second
     for (auto& ed : out_edges)
         fprintf(out, "%d %d\n", min(ed.first, ed.second) + 1, max(ed.first, ed.second) + 1);
-    if (out != stdout) fclose(out);
+    // a full disk or an I/O error must not look like a successful run
+    bool write_err = fflush(out) != 0 || ferror(out);
+    if (out != stdout && fclose(out) != 0) write_err = true;
+    if (write_err) {
+        fprintf(stderr, "error: writing the decomposition to %s failed\n",
+                outfile.empty() ? "stdout" : outfile.c_str());
+        return 2;
+    }
     return 0;
 }
