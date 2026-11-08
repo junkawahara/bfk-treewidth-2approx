@@ -266,6 +266,16 @@ struct Stats {
               recomputes = 0, size_violations = 0, dfs_restarts = 0;
 };
 
+// per-vertex labels used by split, indexed by vertex of G.  One instance is shared by the
+// GTDs of all connected components (their vertex sets are disjoint, and the stamp counter
+// is shared too), so that building a GTD for a component costs O(|component|), not O(|V(G)|).
+struct VertexScratch {
+    vector<int8_t> vlab;
+    vector<int> vstamp;
+    int stamp = 0;
+    explicit VertexScratch(int n) : vlab(n, 0), vstamp(n, 0) {}
+};
+
 struct GTD {
     const Graph& G;
     int k = 0;
@@ -278,14 +288,13 @@ struct GTD {
     size_t mem_entries = 0, peak_entries = 0, mem_limit_entries = 0;
     bool check = false;
     Stats st;
-    // scratch for split
-    vector<int8_t> vlab;
-    vector<int> vstamp;
-    int stamp = 0;
+    // scratch for split (see VertexScratch)
+    vector<int8_t>& vlab;
+    vector<int>& vstamp;
+    int& stamp;
 
-    explicit GTD(const Graph& g, size_t lim) : G(g), mem_limit_entries(lim) {
-        vlab.assign(G.n, 0);
-        vstamp.assign(G.n, 0);
+    GTD(const Graph& g, size_t lim, VertexScratch& scr)
+        : G(g), mem_limit_entries(lim), vlab(scr.vlab), vstamp(scr.vstamp), stamp(scr.stamp) {
         set_L(4);
     }
 
@@ -1251,12 +1260,13 @@ int main(int argc, char** argv) {
     size_t peak = 0;
     bool failed_fixed = false;
     int prev_root = -1;
+    VertexScratch scratch(n);
 
     for (int ci = 0; ci < nc; ++ci) {
         const auto& V = cverts[ci];
         int degen = 0;
         for (int v : V) degen = max(degen, core[v]);
-        GTD T(G, mem_limit_entries);
+        GTD T(G, mem_limit_entries, scratch);
         T.check = check;
         T.build(V, e);
         int w0 = T.width();
