@@ -45,26 +45,39 @@ struct Graph {
     }
 };
 
+// PACE .gr (https://pacechallenge.org/2017/treewidth/, Appendix A): comment lines "c ...",
+// one problem line "p tw n m" before any edge (no other line may start with p), then
+// exactly m edge lines "u v" with 1 <= u, v <= n.  Loops and multiple edges are allowed
+// (they are dropped here, so G.m counts distinct edges only).  Anything else is an error.
 static Graph read_gr(istream& in) {
     Graph G;
     string line;
     bool header = false;
+    long long m_decl = 0, m_read = 0, lineno = 0;
+    auto bad = [&](const string& what) { throw runtime_error("line " + to_string(lineno) + ": " + what); };
+    auto at_end = [](istringstream& ss) { return (ss >> ws).eof(); };
     while (getline(in, line)) {
-        if (line.empty() || line[0] == 'c') continue;
+        ++lineno;
+        if (line.find_first_not_of(" \t\r") == string::npos || line[0] == 'c') continue;
         istringstream ss(line);
         if (line[0] == 'p') {
+            if (header) bad("second p-line");
             string p, tw;
             long long n, m;
-            ss >> p >> tw >> n >> m;
+            if (!(ss >> p >> tw >> n >> m) || p != "p" || tw != "tw" || !at_end(ss))
+                bad("malformed p-line (expected \"p tw n m\")");
+            if (n < 0 || n > INT_MAX || m < 0) bad("vertex or edge count out of range");
             G.n = (int)n;
             G.adj.assign(G.n, {});
+            m_decl = m;
             header = true;
             continue;
         }
         long long u, v;
-        if (!(ss >> u >> v)) continue;
-        if (!header) throw runtime_error("edge before p-line");
-        if (u < 1 || v < 1 || u > G.n || v > G.n) throw runtime_error("vertex id out of range");
+        if (!(ss >> u >> v) || !at_end(ss)) bad("malformed edge line (expected \"u v\")");
+        if (!header) bad("edge before p-line");
+        if (u < 1 || v < 1 || u > G.n || v > G.n) bad("vertex id out of range");
+        ++m_read;
         --u;
         --v;
         if (u == v) continue;
@@ -72,6 +85,9 @@ static Graph read_gr(istream& in) {
         G.adj[v].push_back((int)u);
     }
     if (!header) throw runtime_error("no p-line found");
+    if (m_read != m_decl)
+        throw runtime_error("p-line declares " + to_string(m_decl) + " edges, but the file has " +
+                            to_string(m_read) + " edge lines");
     for (auto& a : G.adj) {
         sort(a.begin(), a.end());
         a.erase(unique(a.begin(), a.end()), a.end());
