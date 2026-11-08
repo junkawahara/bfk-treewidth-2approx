@@ -1314,7 +1314,9 @@ int main(int argc, char** argv) {
         for (int v : out_bags[i]) fprintf(out, " %d", v + 1);
         fprintf(out, "\n");
     }
-    for (auto& ed : out_edges) fprintf(out, "%d %d\n", ed.first + 1, ed.second + 1);
+    // PACE .td (Appendix B): the first bag id of a tree edge must be smaller than the second
+    for (auto& ed : out_edges)
+        fprintf(out, "%d %d\n", min(ed.first, ed.second) + 1, max(ed.first, ed.second) + 1);
     if (out != stdout) fclose(out);
     return 0;
 }
