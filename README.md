@@ -14,7 +14,7 @@ All of the code in this repository was implemented by Claude Opus 5.5.
 make                       # bin/tw2approx, bin/verify_td, bin/gen
 ./run_limited.sh ./bin/tw2approx graph.gr -o out.td     # run with a 32GB / 10 min limit
 ./bin/verify_td graph.gr out.td                          # verify the tree decomposition
-tests/battery.sh                                         # randomized tests (with --check)
+tests/battery.sh                                         # randomized tests (with --check); exit code 0 iff no failure
 ```
 
 `run_limited.sh` runs a command under `ulimit -v 32GB` and `timeout -k 10 590`
@@ -25,7 +25,7 @@ It uses GNU timeout (`gnutimeout`) when available, because the uutils `timeout` 
 
 | Option | Meaning |
 |---|---|
-| `-k K` | Fix k. Outputs a tree decomposition of width ≤ 2K+1, or `tw > K` (exit code 1). Requires an initial width ≤ 4K+3 |
+| `-k K` | Fix k (an integer K ≥ 0). Outputs a tree decomposition of width ≤ 2K+1, or `tw > K` (exit code 1). Requires an initial width ≤ 4K+3 |
 | (no `-k`) | Auto mode. Applies Theorem 1 repeatedly (see below) |
 | `--init mindeg\|random\|mixed` | Elimination ordering used to build the initial tree decomposition: min-degree (default) / random / min-degree that eliminates a random vertex with probability `--mix Q` (for testing; deliberately produces a poor initial decomposition) |
 | `--no-lb` | Do not use the lower bound tw ≥ degeneracy (for testing the failure path) |
@@ -34,8 +34,15 @@ It uses GNU timeout (`gnutimeout`) when available, because the uutils `timeout` 
 | `-v` | Show the rounds and the values of k tried |
 
 The input is in PACE `.gr` format and the output is in PACE `.td` format (only main nodes are output). Statistics are printed to stderr.
+The input is checked strictly: one `p tw n m` line before the edges, exactly m edge lines `u v` with 1 ≤ u, v ≤ n
+(loops and multiple edges are allowed), and otherwise only comment lines.
+Exit codes: 0 success, 1 `tw > K` (with `-k`), 2 invalid input or option, or a write error, 3 runtime error (e.g. the memory limit).
 
-`bin/gen` is a test graph generator: `gen ktree N K P SEED` (a partial K-tree, tw ≤ K), `gen grid R C`, `gen gnm N M SEED`.
+`bin/verify_td` checks that the `.td` file is a tree decomposition of the graph and that both files follow the PACE formats
+(e.g. the edge count of the graph, exactly one `b` line per bag, tree edges `a b` with a < b, and the maximum bag size declared in the `s` line).
+It prints `OK width=W bags=N` (exit code 0) or `ERROR ...` (exit code 1).
+
+`bin/gen` is a test graph generator: `gen ktree N K P SEED` (a partial K-tree, tw ≤ K), `gen grid R C` (tw = min(R,C) unless R = C = 1), `gen gnm N M SEED`.
 
 ## Correspondence between the paper and the implementation
 
@@ -102,7 +109,11 @@ In practice the limit is an initial width of about 16 or less (k ≤ 3–4). Bey
 
 - `tests/battery.sh`: 75 cases in total — random partial K-trees (K=1..3), grids, and G(n,m) — run with `--check --init random --no-lb`.
   **0 failures**; 10 runs were stopped by the memory guard (random initialization gave initial widths of 19–33).
-  Checked: the output is a valid tree decomposition, width ≤ 2k+1, width ≤ 2·tw+1, lower bound ≤ tw, and all DP tables match the recomputed ones.
+  Checked for every run not stopped by the memory guard: tw2approx exits with code 0, `verify_td` accepts the output (including the PACE format),
+  the width measured by `verify_td` equals the reported width, width ≤ 2k+1 for the reported k, and all DP tables match the recomputed ones (`--check`).
+  With a known upper bound K ≥ tw, the battery also checks lower bound ≤ K and width ≤ 2K+1.
+  K = tw only for the grids. For the partial K-trees, tw may be smaller than K, and for G(n,m) no bound is used (K = 99).
+  So the guarantees lower bound ≤ tw and width ≤ 2·tw+1 are checked exactly only on the grids.
 - 25 cases with a build that enables `_GLIBCXX_DEBUG` and UBSan: no problems.
 - Larger instances: a partial 3-tree with n=16000, initial width 15 (mixed initialization): width 7 with `-k 3`, 2.1 s, max RSS 354MB.
   Partial 2-trees with n=2000–8000, initial width 9–11: width 5 with `-k 2`, under 0.05 s each.
