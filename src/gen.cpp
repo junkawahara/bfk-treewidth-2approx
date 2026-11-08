@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // gen.cpp : test graph generator (PACE .gr on stdout)
 //   gen ktree N K P SEED   random partial k-tree (tw <= K), each k-tree edge kept with prob. P
 //   gen grid R C           R x C grid (tw = min(R,C))

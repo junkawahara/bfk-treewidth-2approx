@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // tw2approx.cpp
 //
 // Implementation of

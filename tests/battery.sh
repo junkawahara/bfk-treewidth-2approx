@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
 # randomized battery with --check; every run limited to 32GB / 10 min by run_limited.sh
 cd "$(dirname "$0")/.."
 D=$(mktemp -d)

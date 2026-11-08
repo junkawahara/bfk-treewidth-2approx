@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // verify_td.cpp : check that a PACE .td file is a valid tree decomposition of a .gr graph
 // usage: verify_td graph.gr decomposition.td      -> prints "OK width=W" or the error
 #include <bits/stdc++.h>
