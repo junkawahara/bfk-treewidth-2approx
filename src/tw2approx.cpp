@@ -1126,7 +1126,9 @@ static void usage() {
     fprintf(stderr,
             "usage: tw2approx [options] [graph.gr]  (reads stdin if no file)\n"
             "  -k K           fixed k: output width <= 2K+1 or report tw > K\n"
-            "                 (default: search the smallest k that succeeds)\n"
+            "                 (default: auto mode, applies Theorem 1 with k >= a lower bound lb\n"
+            "                 until width <= 2*lb+1, so width <= 2*tw+1; the reported k is not\n"
+            "                 necessarily the smallest k for which -k K succeeds)\n"
             "  --init H       initial decomposition: mindeg (default) | random | mixed\n"
             "  --mix Q        for --init mixed: probability of a random elimination step (default 0.05)\n"
             "  --seed S       seed for --init random\n"
@@ -1355,12 +1357,17 @@ int main(int argc, char** argv) {
         prev_root = croot;
     }
     double secs = chrono::duration<double>(chrono::steady_clock::now() - t0).count();
+    if (failed_fixed)  // no decomposition of width <= 2k+1 exists for this k: no width guarantee to report
+        fprintf(stderr, "c result: tw > %d  (tw >= %d, no decomposition written)  time=%.3fs\n", fixed_k,
+                lower_bound, secs);
+    else
+        fprintf(stderr, "c result: width=%d  k=%d  (=> width <= 2k+1, tw >= %d)  time=%.3fs\n", out_width,
+                final_k, lower_bound, secs);
     fprintf(stderr,
-            "c result: width=%d  k=%d  (=> width <= 2k+1, tw >= %d)  time=%.3fs\n"
             "c stats: rounds=%lld splits=%lld rotations=%lld merges=%lld table_ops=%lld "
             "entries=%.3g recomputes=%lld peak_table_mem=%.3fGB size_violations=%lld\n",
-            out_width, final_k, lower_bound, secs, tot.rounds, tot.splits, tot.rotations, tot.merges,
-            tot.table_ops, (double)tot.entries, tot.recomputes, peak * 4.0 / 1e9, tot.size_violations);
+            tot.rounds, tot.splits, tot.rotations, tot.merges, tot.table_ops, (double)tot.entries,
+            tot.recomputes, peak * 4.0 / 1e9, tot.size_violations);
     if (failed_fixed) {
         printf("c tw > %d\n", fixed_k);
         return 1;
