@@ -1,7 +1,7 @@
 # Optimized 2-Approximation of Treewidth — C++ 実装
 
 論文: M. Belbasi, M. Fürer, M. Kumar, *Optimized 2-Approximation of Treewidth*, arXiv:2411.16918v3
-（PDF: `paper/2411.16918.pdf`）
+（<https://arxiv.org/abs/2411.16918>。PDF は著者に著作権があるため、このリポジトリには含めない）
 
 グラフ G に対して、幅 ≤ 2k+1 の木分解を構成するか、tw(G) > k と結論する（Theorem 1）。
 既定（自動）モードでは k を探索し、**幅 ≤ 2·tw(G)+1** の木分解と tw の下界を出力する。
