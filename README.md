@@ -1,109 +1,111 @@
-# Optimized 2-Approximation of Treewidth — C++ 実装
+# Optimized 2-Approximation of Treewidth — C++ implementation
 
-論文: M. Belbasi, M. Fürer, M. Kumar, *Optimized 2-Approximation of Treewidth*, arXiv:2411.16918v3
-（<https://arxiv.org/abs/2411.16918>。PDF は著者に著作権があるため、このリポジトリには含めない）
+Paper: M. Belbasi, M. Fürer, M. Kumar, *Optimized 2-Approximation of Treewidth*, arXiv:2411.16918v3
+(<https://arxiv.org/abs/2411.16918>; the PDF is not included in this repository because it is copyrighted by the authors.)
 
-グラフ G に対して、幅 ≤ 2k+1 の木分解を構成するか、tw(G) > k と結論する（Theorem 1）。
-既定（自動）モードでは k を探索し、**幅 ≤ 2·tw(G)+1** の木分解と tw の下界を出力する。
+Given a graph G, the program either constructs a tree decomposition of width ≤ 2k+1 or concludes that tw(G) > k (Theorem 1).
+In the default (auto) mode it searches for k and outputs a tree decomposition of **width ≤ 2·tw(G)+1** together with a lower bound on tw.
 
-## ビルドと実行
+All of the code in this repository was implemented by Claude Opus 5.5.
+
+## Build and run
 
 ```
 make                       # bin/tw2approx, bin/verify_td, bin/gen
-./run_limited.sh ./bin/tw2approx graph.gr -o out.td     # 32GB / 10分 制限付き実行
-./bin/verify_td graph.gr out.td                          # 木分解の検証
-tests/battery.sh                                         # ランダムテスト（--check 付き）
+./run_limited.sh ./bin/tw2approx graph.gr -o out.td     # run with a 32GB / 10 min limit
+./bin/verify_td graph.gr out.td                          # verify the tree decomposition
+tests/battery.sh                                         # randomized tests (with --check)
 ```
 
-`run_limited.sh` は `ulimit -v 32GB` と `timeout 600` をかけてコマンドを実行する。
+`run_limited.sh` runs a command under `ulimit -v 32GB` and `timeout 600`.
 
-### tw2approx のオプション
+### Options of tw2approx
 
-| オプション | 意味 |
+| Option | Meaning |
 |---|---|
-| `-k K` | k を固定する。幅 ≤ 2K+1 の木分解を出力するか、`tw > K` を出力する（終了コード 1）。初期幅 ≤ 4K+3 が必要 |
-| （`-k` なし） | 自動モード。Theorem 1 を繰り返し適用する（下記） |
-| `--init mindeg\|random\|mixed` | 初期木分解を作る消去順序。min-degree（既定）／ランダム／確率 `--mix Q` でランダムな頂点を消去する min-degree（テスト用に、わざと悪い初期解を作る） |
-| `--no-lb` | 退化度による下界 tw ≥ degeneracy を使わない（失敗経路のテスト用） |
-| `--mem-gb G` | DP表のメモリ上限（既定 24GB）。超える場合は計算を始める前にエラー終了する |
-| `--check` | Move・Split のたびに、grouped TD の不変条件と**全DP表を作り直した結果**を照合する（遅い・テスト用） |
-| `-v` | ラウンドや k の試行を表示する |
+| `-k K` | Fix k. Outputs a tree decomposition of width ≤ 2K+1, or `tw > K` (exit code 1). Requires an initial width ≤ 4K+3 |
+| (no `-k`) | Auto mode. Applies Theorem 1 repeatedly (see below) |
+| `--init mindeg\|random\|mixed` | Elimination ordering used to build the initial tree decomposition: min-degree (default) / random / min-degree that eliminates a random vertex with probability `--mix Q` (for testing; deliberately produces a poor initial decomposition) |
+| `--no-lb` | Do not use the lower bound tw ≥ degeneracy (for testing the failure path) |
+| `--mem-gb G` | Memory limit for the DP tables (default 24GB). If the limit would be exceeded, the program exits with an error before starting the computation |
+| `--check` | After every Move and Split, check the invariants of the grouped TD and compare **all DP tables with tables recomputed from scratch** (slow; for testing) |
+| `-v` | Show the rounds and the values of k tried |
 
-入力は PACE `.gr` 形式、出力は PACE `.td` 形式（main ノードのみ出力する）。統計情報は stderr に出す。
+The input is in PACE `.gr` format and the output is in PACE `.td` format (only main nodes are output). Statistics are printed to stderr.
 
-`bin/gen` はテストグラフの生成器: `gen ktree N K P SEED`（部分 K-木で tw ≤ K）、`gen grid R C`、`gen gnm N M SEED`。
+`bin/gen` is a test graph generator: `gen ktree N K P SEED` (a partial K-tree, tw ≤ K), `gen grid R C`, `gen gnm N M SEED`.
 
-## 実装の対応表
+## Correspondence between the paper and the implementation
 
-| 論文 | 実装（`src/tw2approx.cpp`） |
+| Paper | Implementation (`src/tw2approx.cpp`) |
 |---|---|
-| Def 6 grouped TD / Lemma 7 | `GTD::build`。消去順序から作る木分解はそのまま unique home（Lemma 5 の変換は不要）。intersection 子は bag ごとにまとめる |
-| Def 14 DP表 `A_x` | `Node::E`。L^{|B|} 要素、bag 内の位置 p の頂点のラベルを L 進数の p 桁目に置く（0 = X, 1..3 = W_i） |
-| 3.1 Initialization / Addition / Subtraction / Update | `legal_init`, `add_im`（main←inter）, `add_mi`（inter←main）, 符号 ±1 |
+| Def 6 grouped TD / Lemma 7 | `GTD::build`. A tree decomposition built from an elimination ordering already has unique homes (the transformation of Lemma 5 is not needed). Intersection children are grouped by bag |
+| Def 14 DP table `A_x` | `Node::E`. L^{|B|} entries; the label of the vertex at position p in the bag is the p-th digit of a base-L number (0 = X, 1..3 = W_i) |
+| 3.1 Initialization / Addition / Subtraction / Update | `legal_init`, `add_im` (main←inter), `add_mi` (inter←main), with sign ±1 |
 | 3.2 DFS instance | `dfs_find` |
-| Alg 2 Move / Alg 3 Rotate | `move_to_root`, `rotate`（forget chain は `build_chain`） |
-| Alg 4 Merge | `rotate` 内の merge と `attach_inter_*`（同じ bag の兄弟 inter ノードを合併する） |
+| Alg 2 Move / Alg 3 Rotate | `move_to_root`, `rotate` (forget chains: `build_chain`) |
+| Alg 4 Merge | The merge inside `rotate` and `attach_inter_*` (merges sibling inter nodes that have the same bag) |
 | Def 10/11, Alg 5/6 Split | `split`, `process_pending`, `finish_split` |
-| Remark 24（3分割と4分割） | ラウンドで \|B_r\| = w+1 ≥ 3k+4 なら L=3（C1,C2,S）、それ以外は L=4（C1,C2,C3,S）。切り替え時に全表を再計算する |
+| Remark 24 (3-way and 4-way partitions) | In a round with \|B_r\| = w+1 ≥ 3k+4, L=3 (C1,C2,S); otherwise L=4 (C1,C2,C3,S). All tables are recomputed when switching |
 
-## 論文から補った点・修正した点
+## Gaps in the paper filled and corrections made
 
-1. **DP表を「超過量」で持つ**: `E[P] = s(A[P]) − |X_P|`。こうすると Addition は
-   main←inter が `E_m[P] += E_z[P|B_z]`、inter←main が `E_z[P] += min_l(E_y[P+v:l] + [l=X])` になる。
-   Algorithm 5 の `s(A_xi[P']) = s(A_x[P]) − |Q|` は `E_xi[P'] = E_x[P]` になり、Merge も単純な加算で済む。
-   どれも論文の式と等価である。
+1. **DP tables store the "excess"**: `E[P] = s(A[P]) − |X_P|`. With this representation, Addition becomes
+   `E_m[P] += E_z[P|B_z]` for main←inter and `E_z[P] += min_l(E_y[P+v:l] + [l=X])` for inter←main.
+   The formula `s(A_xi[P']) = s(A_x[P]) − |Q|` of Algorithm 5 becomes `E_xi[P'] = E_x[P]`, and Merge is a plain addition.
+   All of these are equivalent to the formulas in the paper.
 
-2. **Algorithm 5 の表の再利用式の修正（重要）**: 論文は、編集可能な子を引いた後の A_x を
-   全コピー x_i に `s(A_x[P]) − |Q|` で流用している。しかしこの A_x には、**別のコピー x_j に移る非編集子 z
-   の寄与**が残っている。B_z の X 部分に複数のラベルが割り当てられると、その寄与は 0 にならない。
-   そのため x_i の表が過大評価になり、split を見落とす（誤って tw > k と判定する）おそれがある。
-   本実装では、非編集子を最も多く受け取るコピー j\* だけでこの再利用式を使い、
-   それ以外のコピーに移る非編集子は先に A_x から減算する。コピー j ≠ j\* の表は、
-   Initialization の後に自分の非編集子を加算して作る。`--check` で、全表が作り直した結果と一致することを確認している。
+2. **Correction of the table-reuse formula in Algorithm 5 (important)**: The paper reuses A_x, after the editable children
+   have been subtracted, for every copy x_i via `s(A_x[P]) − |Q|`. However, this A_x still contains **the contributions of
+   the non-editable children z that move to another copy x_j**. When several labels are assigned to the X part of B_z,
+   such a contribution is not 0. The table of x_i is then overestimated, and a split may be missed (tw > k may be reported wrongly).
+   This implementation uses the reuse formula only for the copy j\* that receives the most non-editable children,
+   and first subtracts from A_x the non-editable children that move to the other copies. The table of each copy j ≠ j\*
+   is built by Initialization followed by adding its own non-editable children. `--check` confirms that all tables match the recomputed ones.
 
-3. **split の top-down 選択**: 編集可能な intersection ノード z の main 子 y で選べるのは、
-   新しい頂点 v のラベルだけである。候補は {X} ∪ a(z) に限る（Def 11(b)）。
-   a(z) にないラベルを a(z) 内のラベルにまとめても、分割は legal のままでサイズは増えない（Lemma 12 の議論）。
-   そのため、制限しても Def 10 の「最小サイズ」は変わらない。サイズが同じなら X を優先する（|X| 最大）。
-   根では、条件 `|W_i| + size < |B_r|`、`size ≤ k+1` を満たす分割のうち、サイズ最小、次に |X| 最大のものを選ぶ。
+3. **Top-down choice of the split**: At the main child y of an editable intersection node z, only the label of
+   the new vertex v can be chosen. The candidates are restricted to {X} ∪ a(z) (Def 11(b)).
+   Merging a label outside a(z) into a label in a(z) keeps the partition legal and does not increase its size (the argument of Lemma 12).
+   Hence the restriction does not change the "minimum size" in Def 10. Among choices of the same size, X is preferred (maximum |X|).
+   At the root, among the partitions that satisfy `|W_i| + size < |B_r|` and `size ≤ k+1`, the one with the minimum size, and then the maximum |X|, is chosen.
 
-4. **非編集子の割り当て**: 非空の W が1つの非編集子は、そのラベルのコピーへ割り当てる。
-   B_z がすべて X の非編集子は、「a(p(x)) の中の任意の1つ」（Def 11(a)）として j\* に割り当てる。
+4. **Assignment of non-editable children**: A non-editable child with exactly one non-empty W is assigned to the copy of that label.
+   A non-editable child whose B_z is entirely X is assigned to j\* as "an arbitrary one in a(p(x))" (Def 11(a)).
 
-5. **コピーと Merge**: 非根ノード x のコピー x_i が新しい木で home を持つのは、x の home 頂点のラベルが i のときに限る。
-   それ以外のコピーは祖父ノード側のコピーに含まれるので、作成せずに最初から merge する。
-   その子や表への寄与は、最も近い実在する祖先コピーへ渡す。
-   これは論文の「コピーを作ってから MERGE」と同じ結果になるが、無駄な表計算を省ける。
+5. **Copies and Merge**: A copy x_i of a non-root node x has a home in the new tree only when the label of the home vertex of x is i.
+   The other copies are contained in the copies on the grandparent side, so they are not created but merged from the start.
+   Their children and their table contributions are passed to the nearest existing ancestor copy.
+   This gives the same result as the paper's "create the copies, then MERGE", but avoids unnecessary table computations.
 
-6. **DFS の再開**: 論文の再開規則（「編集されていない最初の pre-visited ノードから」）は曖昧である。
-   そこで、split の後は根から DFS をやり直し、post-visited（closed）のノードとその部分木は飛ばす。
-   closed な部分木は Move の経路にも編集領域にも入らないため、closed という印は split 後も有効である。
+6. **Restarting the DFS**: The restart rule of the paper ("from the first pre-visited node that was not edited") is ambiguous.
+   Therefore, after a split, the DFS restarts from the root and skips post-visited (closed) nodes and their subtrees.
+   A closed subtree is neither on a Move path nor in the edited region, so the closed mark remains valid after the split.
 
-7. **初期木分解と k の探索**: 初期木分解は消去順序（min-degree）から作る。Corollary 2 の Bodlaender の縮約の代わりに、
-   Theorem 1 を次のように繰り返し適用する。
-   下界 lb（はじめは退化度）と現在の幅 cw を持ち、k = max(lb, ⌈(cw−3)/4⌉) で実行する。
-   成功すると cw ≤ 2k+1 になる。失敗すると tw > k が分かるので lb = k+1 とする。cw ≤ 2·lb+1 になったら止める。
-   このため初期幅が 4k+3 を超えていても 2-近似が保証される。
+7. **Initial tree decomposition and the search for k**: The initial tree decomposition is built from an elimination ordering (min-degree).
+   Instead of Bodlaender's reduction in Corollary 2, Theorem 1 is applied repeatedly as follows.
+   The program keeps a lower bound lb (initially the degeneracy) and the current width cw, and runs with k = max(lb, ⌈(cw−3)/4⌉).
+   On success, cw ≤ 2k+1. On failure, tw > k is known, so lb is set to k+1. The program stops when cw ≤ 2·lb+1.
+   Therefore the 2-approximation is guaranteed even if the initial width exceeds 4k+3.
 
-8. **連結成分ごとに処理する**: grouped TD は連結グラフに対して定義されている（根の bag S が空にならない）。
-   そのため成分ごとに実行し、最後に木分解をつなぐ。
+8. **Processing each connected component separately**: The grouped TD is defined for connected graphs (the root bag S must not be empty).
+   Therefore the algorithm runs on each component, and the tree decompositions are joined at the end.
 
-## 計算量とメモリの実際
+## Complexity and memory in practice
 
-DP表は全ノードに L^{|B|} 個の int32 を持つ。そのため、メモリはおおよそ n·L^{w+1}·4 バイト、
-1回の表操作は L^{w+1} の時間がかかる（論文の O\*(81^k)n に対応する）。
-実用上は初期幅がおよそ 16 以下（k ≤ 3〜4）が限界である。それを超える場合は、`--mem-gb` の上限を確認したうえで計算前にエラー終了する。
+Every node stores a DP table of L^{|B|} int32 entries. Memory is therefore about n·L^{w+1}·4 bytes,
+and one table operation takes L^{w+1} time (corresponding to O\*(81^k)n in the paper).
+In practice the limit is an initial width of about 16 or less (k ≤ 3–4). Beyond that, the program checks the `--mem-gb` limit and exits with an error before computing.
 
-## テスト結果（このマシン、すべて 32GB / 10分 制限下）
+## Test results (on the development machine, all under the 32GB / 10 min limit)
 
-- `tests/battery.sh`: ランダムな部分 K-木（K=1..3）、グリッド、G(n,m) の計 75 ケースを、`--check --init random --no-lb` で実行した。
-  **失敗 0**、メモリガードで中断 10（ランダム初期化で初期幅が 19〜33 になったもの）。
-  検証した内容: 出力が正しい木分解であること、幅 ≤ 2k+1、幅 ≤ 2·tw+1、下界 ≤ tw、全DP表が再計算結果と一致すること。
-- `_GLIBCXX_DEBUG` と UBSan を有効にしたビルドで 25 ケース: 問題なし。
-- 規模の大きい例: n=16000 の部分 3-木、初期幅 15（mixed 初期化）、`-k 3` で幅 7、2.1 秒、最大 RSS 354MB。
-  n=2000〜8000 の部分 2-木、初期幅 9〜11、`-k 2` で幅 5、いずれも 0.05 秒未満。
+- `tests/battery.sh`: 75 cases in total — random partial K-trees (K=1..3), grids, and G(n,m) — run with `--check --init random --no-lb`.
+  **0 failures**; 10 runs were stopped by the memory guard (random initialization gave initial widths of 19–33).
+  Checked: the output is a valid tree decomposition, width ≤ 2k+1, width ≤ 2·tw+1, lower bound ≤ tw, and all DP tables match the recomputed ones.
+- 25 cases with a build that enables `_GLIBCXX_DEBUG` and UBSan: no problems.
+- Larger instances: a partial 3-tree with n=16000, initial width 15 (mixed initialization): width 7 with `-k 3`, 2.1 s, max RSS 354MB.
+  Partial 2-trees with n=2000–8000, initial width 9–11: width 5 with `-k 2`, under 0.05 s each.
 
-## ライセンス
+## License
 
-MIT License。全文は [`LICENSE`](LICENSE) を参照。
-論文（arXiv:2411.16918）の著作権は論文の著者にあり、このライセンスの対象ではない。
+MIT License. See [`LICENSE`](LICENSE) for the full text.
+The paper (arXiv:2411.16918) is copyrighted by its authors and is not covered by this license.
