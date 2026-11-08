@@ -17,7 +17,9 @@ make                       # bin/tw2approx, bin/verify_td, bin/gen
 tests/battery.sh                                         # randomized tests (with --check)
 ```
 
-`run_limited.sh` runs a command under `ulimit -v 32GB` and `timeout 600`.
+`run_limited.sh` runs a command under `ulimit -v 32GB` and `timeout -k 10 590`
+(SIGTERM after 590 s, SIGKILL 10 s later, so at most 10 minutes even if the command ignores SIGTERM).
+It uses GNU timeout (`gnutimeout`) when available, because the uutils `timeout` 0.2.2 did not deliver SIGKILL in our tests.
 
 ### Options of tw2approx
 
