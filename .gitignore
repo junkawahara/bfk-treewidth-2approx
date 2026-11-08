@@ -1,0 +1,8 @@
+# build outputs (make)
+/bin/
+
+# tree decompositions written by test runs
+/tests/*.td
+
+# the paper PDF is copyrighted by its authors; get it from https://arxiv.org/abs/2411.16918
+/paper/
